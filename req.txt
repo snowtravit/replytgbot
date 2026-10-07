@@ -1,4 +1,2 @@
-telethon
-python-dotenv
-aiohttp
-pillow
+telethon>=1.36,<2
+python-dotenv>=1.0,<2

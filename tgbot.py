@@ -1,51 +1,109 @@
+"""Auto-reply to incoming private messages from a Telegram user account."""
+
 import asyncio
-from telethon import events
-from telethon import TelegramClient
+import logging
+import os
+
+from dotenv import load_dotenv
+from telethon import TelegramClient, events
+from telethon.errors import FloodWaitError
 from telethon.tl.functions.messages import SendMediaRequest
-from telethon.tl.types import InputMediaPhotoExternal, InputMediaDocumentExternal
+from telethon.tl.types import InputMediaDocumentExternal, InputMediaPhotoExternal
 
-API_ID = #твой ключ
-API_HASH = 'твой ключ'
-SESSION_NAME = 'session_name'
+from settings import Config, ReplyCooldown
 
-client = TelegramClient(SESSION_NAME, api_id=API_ID, api_hash=API_HASH)
 
-async def main():
-    await client.start()
-    print('все! акк спиздил')
+logger = logging.getLogger(__name__)
+
+
+async def send_reply(client: TelegramClient, chat_id: int, config: Config) -> None:
+    if config.photo_url:
+        try:
+            await client(
+                SendMediaRequest(
+                    peer=chat_id,
+                    media=InputMediaPhotoExternal(url=config.photo_url),
+                    message=config.reply_text,
+                )
+            )
+        except FloodWaitError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "Photo delivery failed (%s); sending text instead.", type(exc).__name__
+            )
+            await client.send_message(chat_id, config.reply_text, parse_mode=None)
+    else:
+        await client.send_message(chat_id, config.reply_text, parse_mode=None)
+
+    if config.gif_url:
+        try:
+            await client(
+                SendMediaRequest(
+                    peer=chat_id,
+                    media=InputMediaDocumentExternal(url=config.gif_url),
+                    message="",
+                )
+            )
+        except FloodWaitError:
+            raise
+        except Exception as exc:
+            logger.warning("GIF delivery failed (%s).", type(exc).__name__)
+
+
+async def main(config: Config) -> None:
+    client = TelegramClient(config.session_name, config.api_id, config.api_hash)
+    cooldown = ReplyCooldown(config.cooldown_seconds)
 
     @client.on(events.NewMessage(incoming=True))
     async def handler(event):
-        if not event.is_private:
+        if not event.is_private or event.sender_id is None:
+            return
+        if not cooldown.reserve(event.sender_id):
             return
 
-        print(f'пиздит чет {event.sender_id}')
-
-        text_answer = 'менеджер сноу джугает бабки и факает телочек'
-        photo_url = 'https://i.ibb.co/Jj5QWSFZ/image.png'
-        gif_url = 'https://s4.ezgif.com/tmp/ezgif-4efb6e1244423095.gif'
-
         try:
-            await client(SendMediaRequest(
-                peer=event.chat_id,
-                media=InputMediaPhotoExternal(url=photo_url),
-                message=text_answer
-            ))
-            print('нюдсы бля')
-        except Exception as e:
-            print(f'сука нет нюдсов: {e}')
+            await send_reply(client, event.chat_id, config)
+            logger.info("Auto-reply attempt completed.")
+        except FloodWaitError as exc:
+            # Pause all replies; incoming messages during the pause are not queued.
+            cooldown.pause(exc.seconds + 1)
+            logger.warning("Telegram requested a pause of %s seconds.", exc.seconds)
+        except Exception as exc:
+            logger.warning("Auto-reply failed (%s).", type(exc).__name__)
 
-        try:
-            await client(SendMediaRequest(
-                peer=event.chat_id,
-                media=InputMediaDocumentExternal(url=gif_url),
-                message=''
-            ))
-            print('домашнее порно!')
-        except Exception as e:
-            print(f'где порно суки: {e}')
+    try:
+        await client.start()
+        logger.info(
+            "Auto-reply is running; per-sender cooldown is %s seconds.",
+            config.cooldown_seconds,
+        )
+        await client.run_until_disconnected()
+    finally:
+        await client.disconnect()
 
-    await client.run_until_disconnected()
 
-if __name__ == '__main__':
-    asyncio.run(main())
+def run() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    # Values exported by the shell take precedence over .env.
+    load_dotenv(override=False)
+    try:
+        config = Config.from_env(os.environ)
+    except ValueError as exc:
+        logger.error("Configuration error: %s", exc)
+        raise SystemExit(2) from None
+
+    try:
+        asyncio.run(main(config))
+    except KeyboardInterrupt:
+        logger.info("Auto-reply stopped.")
+    except Exception as exc:
+        logger.error(
+            "Telegram connection failed (%s). Check credentials, session and network.",
+            type(exc).__name__,
+        )
+        raise SystemExit(1) from None
+
+
+if __name__ == "__main__":
+    run()
