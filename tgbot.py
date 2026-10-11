@@ -52,7 +52,14 @@ async def send_reply(client: TelegramClient, chat_id: int, config: Config) -> No
 
 
 async def main(config: Config) -> None:
-    client = TelegramClient(config.session_name, config.api_id, config.api_hash)
+    client = TelegramClient(
+        config.session_name,
+        config.api_id,
+        config.api_hash,
+        # Handle every flood wait here instead of Telethon sleeping and retrying
+        # inside a send while other incoming messages continue to be processed.
+        flood_sleep_threshold=0,
+    )
     cooldown = ReplyCooldown(config.cooldown_seconds)
 
     @client.on(events.NewMessage(incoming=True))
@@ -71,6 +78,8 @@ async def main(config: Config) -> None:
             logger.warning("Telegram requested a pause of %s seconds.", exc.seconds)
         except Exception as exc:
             logger.warning("Auto-reply failed (%s).", type(exc).__name__)
+        finally:
+            cooldown.finish(event.sender_id)
 
     try:
         await client.start()

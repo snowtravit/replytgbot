@@ -65,15 +65,19 @@ The cooldown starts before sending and also applies to failed attempts, so a
 burst of messages does not trigger repeated retries. Messages received during
 the cooldown are skipped, not queued. Timing uses an in-memory monotonic clock
 and resets when the process restarts. Run one instance per account/session.
+An unfinished reply remains reserved even when its cooldown expires, so slow
+delivery cannot cause overlapping replies to the same sender.
 When Telegram requests a flood wait, all replies pause for that interval;
-messages received during the pause are skipped.
+messages received during the pause are skipped. Telethon's automatic flood-wait
+sleep/retry is disabled so the same policy applies to short pauses too.
 
 ## Local checks
 
-The tests use only the Python standard library. No credentials, dependency
-installation, or Telegram connection are required:
+Install dependencies before running the offline tests. They use fake clients;
+no credentials, login or Telegram connection are required:
 
 ```bash
+python -m pip install -r req.txt
 python -m unittest discover -s tests -v
 python -m py_compile settings.py tgbot.py
 ```

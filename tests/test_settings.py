@@ -93,10 +93,25 @@ class CooldownTests(unittest.TestCase):
 
     def test_skipped_messages_do_not_extend_the_cooldown(self):
         self.assertTrue(self.cooldown.reserve(1))
+        self.cooldown.finish(1)
         self.now = 159.0
         self.assertFalse(self.cooldown.reserve(1))
         self.now = 160.0
         self.assertTrue(self.cooldown.reserve(1))
+        self.assertFalse(self.cooldown.reserve(1))
+
+    def test_slow_send_stays_reserved_when_the_cooldown_expires(self):
+        self.assertTrue(self.cooldown.reserve(1))
+        self.now += 61
+        self.assertFalse(self.cooldown.reserve(1))
+        self.assertTrue(self.cooldown.reserve(2))
+        self.cooldown.finish(1)
+        self.assertTrue(self.cooldown.reserve(1))
+
+    def test_finish_preserves_the_remaining_cooldown(self):
+        self.assertTrue(self.cooldown.reserve(1))
+        self.cooldown.finish(1)
+        self.cooldown.finish(1)
         self.assertFalse(self.cooldown.reserve(1))
 
     def test_flood_wait_applies_to_all_senders_and_does_not_queue_them(self):

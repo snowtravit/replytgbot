@@ -92,6 +92,7 @@ class ReplyCooldown:
         self._seconds = seconds
         self._clock = clock
         self._expires: dict[int, float] = {}
+        self._active: set[int] = set()
         self._paused_until = 0.0
 
     def reserve(self, sender_id: int) -> bool:
@@ -99,10 +100,19 @@ class ReplyCooldown:
         self._expires = {
             sender: expiry for sender, expiry in self._expires.items() if expiry > now
         }
-        if now < self._paused_until or sender_id in self._expires:
+        if (
+            now < self._paused_until
+            or sender_id in self._expires
+            or sender_id in self._active
+        ):
             return False
         self._expires[sender_id] = now + self._seconds
+        self._active.add(sender_id)
         return True
+
+    def finish(self, sender_id: int) -> None:
+        """Release an in-flight attempt while preserving its cooldown."""
+        self._active.discard(sender_id)
 
     def pause(self, seconds: int) -> None:
         """Apply Telegram's flood wait to all senders without blocking the handler."""
