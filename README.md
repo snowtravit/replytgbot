@@ -1,14 +1,35 @@
-# Telegram Auto-Reply
+# 🤖 Telegram Auto-Reply
 
 [![Checks](https://github.com/snowtravit/replytgbot/actions/workflows/checks.yml/badge.svg)](https://github.com/snowtravit/replytgbot/actions/workflows/checks.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/snowtravit/replytgbot)](https://github.com/snowtravit/replytgbot/releases)
 
 A small [Telethon](https://docs.telethon.dev/) userbot that replies to incoming
 private messages from your **Telegram user account**. It sends configurable text
 and optional photo/GIF URLs. Groups, channels and outgoing messages are ignored.
 It sends existing media; it does not generate or process images.
 
-## Setup
+## ✨ What it does
+
+- 💬 Replies with plain text, or uses that text as a photo caption.
+- 🖼️ Sends optional photos and GIFs from direct HTTPS URLs.
+- ⏱️ Limits replies per sender and prevents duplicate replies during slow delivery.
+- 🛡️ Pauses all replies when Telegram requests a flood wait.
+- ⚙️ Reads settings from `.env` without putting credentials in the code.
+
+```mermaid
+flowchart LR
+    A[Incoming private message] --> B{Reply allowed?}
+    B -->|Cooldown, reply in progress, or flood pause| C[Skip message]
+    B -->|Yes| D[Reserve sender]
+    D --> E[Send text or photo, then optional GIF]
+    E --> F[Finish attempt; keep cooldown]
+```
+
+Groups, channels and outgoing messages are filtered before this flow.
+
+## 🚀 Setup
 
 Requires Python 3.10 or newer and a Telegram account.
 
@@ -37,7 +58,7 @@ verification password if enabled. Later runs use the local `.session` file.
 Keep `.env` and session files private: the session grants access to your account.
 They are excluded from Git. Stop the process with Ctrl+C.
 
-## Configuration
+## ⚙️ Configuration
 
 Values come from `.env` or exported environment variables; exported variables
 take precedence. Configuration is validated before connecting to Telegram.
@@ -71,7 +92,7 @@ When Telegram requests a flood wait, all replies pause for that interval;
 messages received during the pause are skipped. Telethon's automatic flood-wait
 sleep/retry is disabled so the same policy applies to short pauses too.
 
-## Local checks
+## 🧪 Local checks
 
 Install dependencies before running the offline tests. They use fake clients;
 no credentials, login or Telegram connection are required:
@@ -83,3 +104,19 @@ python -m py_compile settings.py tgbot.py
 ```
 
 GitHub Actions runs these checks on Python 3.10 and 3.12 for pushes and pull requests.
+
+The v1.0.0 release was checked with 20 offline tests on Python 3.12. Live account
+login and actual Telegram delivery were not part of that validation.
+
+## 📦 Releases
+
+See [the changelog](CHANGELOG.md) for changes and
+[GitHub Releases](https://github.com/snowtravit/replytgbot/releases) for versioned
+source archives. After updating, stop the old process before starting the new one;
+keep your private `.env` and session files on your own machine.
+
+## 📄 License
+
+The project code is available under the [MIT License](LICENSE).
+Dependencies and any photos or GIFs you configure retain their respective
+licenses and ownership; this license does not grant rights to external media.
